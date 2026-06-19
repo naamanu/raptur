@@ -3,6 +3,10 @@ import { auth, cache, validate, cors, errorBoundary, json, logger } from "../src
 import { makeReq, makeRes } from "./helpers";
 
 describe("auth", () => {
+  it("throws at construction when neither token nor verify is given", () => {
+    expect(() => auth()).toThrow("requires");
+  });
+
   it("401s without a credential", async () => {
     const { res, out } = makeRes();
     await compose(auth({ token: "secret" }), handler(() => {}))(makeReq(), res, async () => {});
@@ -79,6 +83,50 @@ describe("cache", () => {
     await route(makeReq({ path: "/a" }), makeRes().res, async () => {});
     await route(makeReq({ path: "/b" }), makeRes().res, async () => {});
     expect(hits).toBe(2);
+  });
+
+  it("does not cache non-2xx responses", async () => {
+    const mw = cache({ ttl: 60 });
+    let hits = 0;
+    const route = compose(mw, handler((_q, s) => s.status(500).json({ n: (hits += 1) })));
+    await route(makeReq({ path: "/e" }), makeRes().res, async () => {});
+    await route(makeReq({ path: "/e" }), makeRes().res, async () => {});
+    expect(hits).toBe(2); // re-run each time, nothing cached
+  });
+
+  it("evicts the oldest entry once max is exceeded", async () => {
+    const mw = cache({ ttl: 60, max: 1 });
+    let hits = 0;
+    const route = compose(mw, handler((_q, s) => s.json({ n: (hits += 1) })));
+    await route(makeReq({ path: "/a" }), makeRes().res, async () => {}); // store a
+    await route(makeReq({ path: "/b" }), makeRes().res, async () => {}); // store b, evict a
+    await route(makeReq({ path: "/a" }), makeRes().res, async () => {}); // a was evicted -> miss
+    expect(hits).toBe(3);
+  });
+
+  it("treats reordered query strings as the same key", async () => {
+    const mw = cache({ ttl: 60 });
+    let hits = 0;
+    const route = compose(mw, handler((_q, s) => s.json({ n: (hits += 1) })));
+    await route(makeReq({ path: "/s?a=1&b=2" }), makeRes().res, async () => {});
+    await route(makeReq({ path: "/s?b=2&a=1" }), makeRes().res, async () => {});
+    expect(hits).toBe(1);
+  });
+});
+
+describe("json (body limits)", () => {
+  it("413s a body larger than the limit", async () => {
+    const { res, out } = makeRes();
+    const req = makeReq({ method: "POST", body: { data: "x".repeat(100) } });
+    await compose(json({ limit: 10 }), handler(() => {}))(req, res, async () => {});
+    expect(out.statusCode).toBe(413);
+  });
+
+  it("400s a malformed JSON body", async () => {
+    const { res, out } = makeRes();
+    const req = makeReq({ method: "POST", rawBody: "{ not json" });
+    await compose(json(), handler(() => {}))(req, res, async () => {});
+    expect(out.statusCode).toBe(400);
   });
 });
 

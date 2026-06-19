@@ -25,7 +25,8 @@ beforeAll(async () => {
       json(),
       validate((req) => Boolean(req.body?.name)),
       handler((req, res) => res.status(201).json({ created: req.body.name })),
-    );
+    )
+    .patch("/users/:id", handler((req, res) => res.json({ patched: req.params.id })));
 
   await new Promise<void>((resolve) => app.httpServer.listen(0, resolve));
   const { port } = app.httpServer.address() as AddressInfo;
@@ -33,7 +34,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => app.httpServer.close(() => resolve()));
+  await app.stop();
 });
 
 describe("router pipeline", () => {
@@ -47,6 +48,12 @@ describe("router pipeline", () => {
     const r = await fetch(`${base}/nope`);
     expect(r.status).toBe(404);
     expect(await r.json()).toEqual({ error: "Not Found" });
+  });
+
+  it("routes PATCH requests", async () => {
+    const r = await fetch(`${base}/users/8`, { method: "PATCH" });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ patched: "8" });
   });
 
   it("extracts URL params", async () => {

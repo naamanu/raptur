@@ -1,7 +1,7 @@
 import { RapturRequest } from "./request";
 import { RapturResponse } from "./response";
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
 
 /** Terminal handler: the end of a pipeline that writes the response. */
 export type RouteHandler = (req: RapturRequest, res: RapturResponse) => unknown | Promise<unknown>;

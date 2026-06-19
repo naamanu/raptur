@@ -18,4 +18,14 @@ describe("RapturRequest", () => {
     const req = makeReq({ method: "POST" });
     expect(await req.json()).toEqual({});
   });
+
+  it("throws a 413 BodyError past the limit", async () => {
+    const req = makeReq({ method: "POST", body: { a: "x".repeat(100) } });
+    await expect(req.json({ limit: 5 })).rejects.toMatchObject({ status: 413 });
+  });
+
+  it("throws a 400 BodyError on malformed JSON", async () => {
+    const req = makeReq({ method: "POST", rawBody: "{ not json" });
+    await expect(req.json()).rejects.toMatchObject({ status: 400 });
+  });
 });
