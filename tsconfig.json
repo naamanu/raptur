@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "NodeNext",
     "declaration": true,
     "outDir": "./dist",
@@ -10,9 +10,12 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
     "rootDir": "./src",
-    "lib": ["ES2020"],
+    "lib": ["ES2022"],
     "types": ["node", "jest"],
     "moduleResolution": "nodenext",
+    // Standard (TC39) decorators: enabled by the *absence* of
+    // experimentalDecorators. Do not add experimentalDecorators/emitDecoratorMetadata.
+    "useDefineForClassFields": true,
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]

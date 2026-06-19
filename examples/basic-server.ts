@@ -1,19 +1,35 @@
-import { Raptur } from "../dist/router";
+import { Raptur, compose, handler, auth, cache, cors, json, logger } from "../src";
 
-const router = new Raptur();
+const app = new Raptur();
 
-router
-  .get('/api/users', async (req, res) => {
-    res.json({ users: ['John', 'Jane'] });
+// Global middleware runs before every route, in order.
+app.use(logger(), cors());
+
+app
+  // A plain terminal handler is a valid Middleware (it just ignores `next`).
+  .get("/api/health", (req, res) => {
+    res.json({ ok: true });
   })
-  .get('/api/users/:id', async (req, res) => {
-    const { id } = req.params;
-    res.json({ userId: id });
-  })
-  .post('/api/users', async (req, res) => {
-    const body = await req.json();
-    res.status(201).json({ message: 'User created', data: body });
-  });
+  // Compose cross-cutting concerns into a route pipeline.
+  .get(
+    "/api/users/:id",
+    auth({ token: "secret" }),
+    cache({ ttl: 30 }),
+    handler((req, res) => {
+      res.json({ userId: req.params.id });
+    }),
+  )
+  .post(
+    "/api/users",
+    json(),
+    compose(
+      auth({ token: "secret" }),
+      handler((req, res) => {
+        res.status(201).json({ message: "User created", data: req.body });
+      }),
+    ),
+  );
 
-router.start();
-
+app.start(() => {
+  console.log("🦖 try: curl -H 'authorization: Bearer secret' localhost:3000/api/users/42");
+});

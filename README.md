@@ -15,17 +15,17 @@
           (____(__  \_____/    
 ```
 
-Raptur Router is a simple, TypeScript-first HTTP router for Node.js. Built with developer experience in mind, it provides a clean, chainable API for building web applications.
+Raptur is a TypeScript-first HTTP router for Node.js built on `node:http`. Routes are **composable middleware pipelines**: each route is a stack of small, single-purpose middleware (`auth`, `cache`, `validate`, …) folded together with `compose()` and capped by a terminal handler.
 
 ## Features
 
 - 🚀 Simple routing
-- 💪 Built with TypeScript
-- 🎯 Type safety
-- ⚡️ Async/await support
+- 🧩 Composable middleware pipelines (`compose`)
+- 🔋 Batteries included: `auth`, `cache`, `cors`, `validate`, `logger`, `json`, `errorBoundary`
+- 🎀 Optional standard (TC39) `@use` decorator — no `reflect-metadata`
+- 💪 Built with TypeScript, async/await throughout
 - 🔍 URL parameter parsing
-- 📦 Zero dependencies
-- 🛠 Chainable API
+- 📦 Zero **runtime** dependencies
 - 🦕 Prehistoric power!
 
 ## Installation
@@ -38,22 +38,30 @@ npm install raptur
 ## Quick Start
 
 ```typescript
-import { Raptur } from 'raptur';
+import { Raptur, compose, handler, auth, cache, json, logger, cors } from 'raptur';
 
 const app = new Raptur(); // can pass optional port, default is :3000
 
+// Global middleware runs before every route.
+app.use(logger(), cors());
+
 app
+  // A plain handler is a valid middleware — it just ignores `next`.
   .get('/api/hello', (req, res) => {
     res.json({ message: 'Hello from Raptur! 🦖' });
   })
-  .get('/api/users/:id', async (req, res) => {
-    const { id } = req.params;
-    res.json({ userId: id });
-  })
-  .post('/api/users', async (req, res) => {
-    const body = await req.json();
-    res.status(201).json({ message: 'User created', data: body });
-  });
+  // Compose cross-cutting concerns into a route pipeline.
+  .get('/api/users/:id',
+    auth({ token: 'secret' }),
+    cache({ ttl: 30 }),
+    handler((req, res) => res.json({ userId: req.params.id })),
+  )
+  .post('/api/users',
+    json(),
+    handler((req, res) => {
+      res.status(201).json({ message: 'User created', data: req.body });
+    }),
+  );
 
 app.start(() => {
   console.log('🦖 Raptur is hunting on port 3000');
@@ -71,11 +79,58 @@ const app = new Raptur();
 
 ### Route Methods
 
+Each method accepts a path and **one or more middleware**, composed in order:
+
 ```typescript
-app.get(path: string, handler: RouteHandler);
-app.post(path: string, handler: RouteHandler);
-app.put(path: string, handler: RouteHandler);
-app.delete(path: string, handler: RouteHandler);
+app.use(...middleware: Middleware[]);                  // global middleware
+app.get(path: string, ...middleware: Middleware[]);
+app.post(path: string, ...middleware: Middleware[]);
+app.put(path: string, ...middleware: Middleware[]);
+app.delete(path: string, ...middleware: Middleware[]);
+```
+
+### Middleware & Composition
+
+A `Middleware` is `(req, res, next) => unknown`. Call `next()` to continue the
+pipeline, or write to `res` to end it. A terminal `(req, res)` handler is wrapped
+with `handler()`; `compose()` folds many middleware into one (Koa onion order).
+
+```typescript
+import { compose, handler } from 'raptur';
+
+const pipeline = compose(
+  auth({ token: 'secret' }),
+  cache({ ttl: 60 }),
+  handler((req, res) => res.json({ ok: true })),
+);
+```
+
+#### Built-in middleware
+
+| Factory | Purpose |
+| --- | --- |
+| `json()` | Parse the JSON body into `req.body` |
+| `auth({ token \| verify })` | Reject unauthenticated requests with `401` |
+| `cache({ ttl })` | Replay a captured response within `ttl` seconds |
+| `validate(check)` | `400` when a predicate fails (return a string for the message) |
+| `cors(opts?)` | Set CORS headers; `204` on preflight `OPTIONS` |
+| `logger(opts?)` | Log `METHOD path -> status (Nms)` |
+| `errorBoundary(onError?)` | Catch downstream throws → `500` (applied by default) |
+
+### `@use` decorator (optional)
+
+A standard (TC39) method decorator wraps a route-handler method in a pipeline —
+no `experimentalDecorators` or `reflect-metadata` required:
+
+```typescript
+import { use, auth, cache } from 'raptur';
+
+class UserRoutes {
+  @use(auth({ token: 'secret' }), cache({ ttl: 60 }))
+  getUser(req: RapturRequest, res: RapturResponse) {
+    res.json({ id: req.params.id });
+  }
+}
 ```
 
 ### Request Object
@@ -136,13 +191,22 @@ app.post('/api/data', async (req, res) => {
 
 ## Error Handling
 
-Raptur automatically handles route errors:
+Every pipeline is wrapped in a default `errorBoundary()`, so a thrown error
+becomes a `500` automatically:
 
 ```typescript
-app.get('/api/error', async (req, res) => {
+app.get('/api/error', handler(async () => {
   throw new Error('Something went wrong');
   // Automatically returns 500 Internal Server Error
-});
+}));
+```
+
+Provide your own boundary to customise the response:
+
+```typescript
+app.use(errorBoundary((err, req, res) => {
+  res.status(502).json({ error: 'Upstream failed' });
+}));
 ```
 
 ## Examples
