@@ -4,9 +4,10 @@
  * Routes are pipelines of `Middleware` composed with `compose()`; cross-cutting
  * concerns ship as built-in middleware factories (`auth`, `cache`, `cors`, ...).
  */
-export { Raptur } from "./router";
-export { RapturRequest } from "./request";
+export { Raptur, RapturOptions } from "./router";
+export { RapturRequest, JsonOptions, DEFAULT_BODY_LIMIT } from "./request";
 export { RapturResponse } from "./response";
+export { BodyError } from "./errors";
 
 export { compose, handler } from "./compose";
 export { use } from "./decorators";

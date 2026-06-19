@@ -16,6 +16,12 @@ export interface AuthOptions {
  * pipeline via `next()`; with neither option set, any present credential passes.
  */
 export function auth(opts: AuthOptions = {}): Middleware {
+  if (opts.token === undefined && opts.verify === undefined) {
+    // Fail fast: an auth() that lets every credential through is almost never
+    // intended and would be a silent security hole.
+    throw new Error("auth() requires either a `token` or a `verify` option");
+  }
+
   const headerName = (opts.header ?? "authorization").toLowerCase();
   const scheme = opts.scheme ?? "Bearer";
 
@@ -32,11 +38,7 @@ export function auth(opts: AuthOptions = {}): Middleware {
       ? value.slice(scheme.length + 1)
       : value;
 
-    const ok = opts.verify
-      ? await opts.verify(token)
-      : opts.token !== undefined
-        ? token === opts.token
-        : true;
+    const ok = opts.verify ? await opts.verify(token) : token === opts.token;
 
     if (!ok) {
       res.status(401).json({ error: "Unauthorized" });

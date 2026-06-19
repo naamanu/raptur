@@ -1,4 +1,4 @@
-export { json } from "./body";
+export { json, JsonMiddlewareOptions } from "./body";
 export { cors, CorsOptions } from "./cors";
 export { auth, AuthOptions } from "./auth";
 export { cache, CacheOptions } from "./cache";

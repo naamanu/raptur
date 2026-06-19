@@ -1,6 +1,6 @@
 import { Raptur, compose, handler, auth, cache, cors, json, logger } from "../src";
 
-const app = new Raptur();
+const app = new Raptur({ silent: false });
 
 // Global middleware runs before every route, in order.
 app.use(logger(), cors());

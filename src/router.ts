@@ -8,23 +8,46 @@ import { errorBoundary } from "./middleware/error-boundary";
 import { HttpMethod, Middleware, Route } from "./types";
 
 
+export interface RapturOptions {
+  /** Port to listen on. Default `3000`. */
+  port?: number;
+  /** Suppress the startup banner and per-route registration logs. Default `true`. */
+  silent?: boolean;
+}
+
+const BANNER = `
+         __    _
+        / _)  / \\        /\\  /\\
+       /(_)(  \\_/       /  \\/  \\
+      (____)\\  _    ___/   /\\   \\
+           U  (_)  (___/   \\/   /
+               _    _  \\_      /
+              (____(__  \\_____/
+
+    🦖 Raptur Router initialized`;
+
 export class Raptur {
   private routes: Route[] = [];
   private globalMiddleware: Middleware[] = [];
   private server: http.Server;
+  private port: number;
+  private silent: boolean;
 
-  constructor(private port: number = 3000) {
+  /**
+   * @param options A port number (shorthand) or a {@link RapturOptions} object.
+   * Logging is off by default — pass `{ silent: false }` to see the banner and
+   * route registrations.
+   */
+  constructor(options: number | RapturOptions = {}) {
+    const opts: RapturOptions = typeof options === "number" ? { port: options } : options;
+    this.port = opts.port ?? 3000;
+    this.silent = opts.silent ?? true;
     this.server = http.createServer(this.handleRequest.bind(this));
-    console.log(`
-         __    _                   
-        / _)  / \\        /\\  /\\    
-       /(_)(  \\_/       /  \\/  \\   
-      (____)\\  _    ___/   /\\   \\
-           U  (_)  (___/   \\/   /  
-               _    _  \\_      /   
-              (____(__  \\_____/    
-            
-    🦖 Raptur Router initialized`);
+    this.log(BANNER);
+  }
+
+  private log(message: string): void {
+    if (!this.silent) console.log(message);
   }
 
   /** Register global middleware run before every matched route, in order. */
@@ -45,13 +68,25 @@ export class Raptur {
     return this.addRoute('PUT', path, middleware);
   }
 
+  patch(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('PATCH', path, middleware);
+  }
+
   delete(path: string, ...middleware: Middleware[]): this {
     return this.addRoute('DELETE', path, middleware);
   }
 
+  options(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('OPTIONS', path, middleware);
+  }
+
+  head(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('HEAD', path, middleware);
+  }
+
   private addRoute(method: HttpMethod, path: string, middleware: Middleware[]): this {
     this.routes.push({ method, path, handler: compose(...middleware) });
-    console.log(`🦕 Route registered: ${method} ${path}`);
+    this.log(`🦕 Route registered: ${method} ${path}`);
     return this;
   }
 
@@ -114,12 +149,19 @@ export class Raptur {
 
   start(callback?: () => void): void {
     this.server.listen(this.port, () => {
-      console.log(`🦖 Raptur is hunting on port ${this.port}`);
+      this.log(`🦖 Raptur is hunting on port ${this.port}`);
       callback?.();
     });
   }
 
-  /** The underlying `http.Server`, e.g. to `.close()` it or read its address. */
+  /** Stop accepting connections and close the server. */
+  stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  /** The underlying `http.Server`, e.g. to read its address. */
   get httpServer(): http.Server {
     return this.server;
   }

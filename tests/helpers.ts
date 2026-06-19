@@ -39,12 +39,16 @@ export interface ReqInit {
   path?: string;
   headers?: http.IncomingHttpHeaders;
   body?: unknown;
+  /** Raw body bytes, used to simulate malformed JSON (takes precedence over `body`). */
+  rawBody?: string;
 }
 
 /** Build a RapturRequest backed by an in-memory stream for the JSON body. */
 export function makeReq(init: ReqInit = {}): RapturRequest {
-  const { method = "GET", path = "/", headers = {}, body } = init;
-  const stream = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+  const { method = "GET", path = "/", headers = {}, body, rawBody } = init;
+  const payload =
+    rawBody !== undefined ? rawBody : body === undefined ? undefined : JSON.stringify(body);
+  const stream = Readable.from(payload === undefined ? [] : [Buffer.from(payload)]);
   const fake = Object.assign(stream, { headers, method }) as unknown as http.IncomingMessage;
   const url = new URL(path, "http://localhost");
   const req = new RapturRequest(fake, url);

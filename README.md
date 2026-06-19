@@ -86,7 +86,20 @@ app.use(...middleware: Middleware[]);                  // global middleware
 app.get(path: string, ...middleware: Middleware[]);
 app.post(path: string, ...middleware: Middleware[]);
 app.put(path: string, ...middleware: Middleware[]);
+app.patch(path: string, ...middleware: Middleware[]);
 app.delete(path: string, ...middleware: Middleware[]);
+app.options(path: string, ...middleware: Middleware[]);
+app.head(path: string, ...middleware: Middleware[]);
+```
+
+The constructor takes a port or an options object, and is **quiet by default**
+(pass `{ silent: false }` for the startup banner and route logs). `app.stop()`
+closes the server and returns a promise.
+
+```typescript
+const app = new Raptur({ port: 8080, silent: false });
+// ...later
+await app.stop();
 ```
 
 ### Middleware & Composition
@@ -109,9 +122,9 @@ const pipeline = compose(
 
 | Factory | Purpose |
 | --- | --- |
-| `json()` | Parse the JSON body into `req.body` |
-| `auth({ token \| verify })` | Reject unauthenticated requests with `401` |
-| `cache({ ttl })` | Replay a captured response within `ttl` seconds |
+| `json({ limit? })` | Parse the JSON body into `req.body`; `413` over `limit` (default 1 MiB), `400` on malformed JSON |
+| `auth({ token \| verify })` | Reject unauthenticated requests with `401` (throws if neither option is given) |
+| `cache({ ttl, max? })` | Replay a captured **2xx** response within `ttl` seconds; bounded store (default `max` 1000) |
 | `validate(check)` | `400` when a predicate fails (return a string for the message) |
 | `cors(opts?)` | Set CORS headers; `204` on preflight `OPTIONS` |
 | `logger(opts?)` | Log `METHOD path -> status (Nms)` |
