@@ -2,19 +2,26 @@
   "name": "raptur",
   "packageManager": "yarn@4.5.3",
   "version": "0.1.0",
-  "description": "Simple Node.js router with prehistoric power 🦖",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "Composable, zero-dependency HTTP router for Node.js with prehistoric power 🦖",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run lint",
-    "preversion": "npm run lint",
-    "version": "npm run format && git add -A src",
-    "postversion": "git push && git push --tags"
+    "prepare": "yarn build",
+    "prepublishOnly": "yarn typecheck && yarn test && yarn lint"
   },
   "keywords": [
     "router",
@@ -23,28 +30,24 @@
     "http",
     "server",
     "web",
-    "raptor",
-    "fast"
+    "middleware",
+    "composable",
+    "decorators"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Nana Adjei Manu",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/raptor-router.git"
+    "url": "git+https://github.com/nkwadwo/raptur.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/raptor-router/issues"
+    "url": "https://github.com/nkwadwo/raptur/issues"
   },
-  "homepage": "https://github.com/yourusername/raptor-router#readme",
+  "homepage": "https://github.com/nkwadwo/raptur#readme",
   "devDependencies": {
-    "@babel/core": "^7.16.0",
-    "@babel/preset-env": "^7.16.4",
-    "@babel/preset-typescript": "^7.16.0",
     "@eslint/js": "^9.17.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.2",
-    "@typescript-eslint/eslint-plugin": "^8.18.2",
-    "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.14.0",
@@ -52,6 +55,7 @@
     "prettier": "^3.4.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
+    "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.2"
   },

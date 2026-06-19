@@ -6,9 +6,17 @@ export class RapturRequest {
   public query: Record<string, string> = {};
   public body: any;
   public headers: http.IncomingHttpHeaders;
+  /** Uppercase HTTP method, e.g. `GET`. */
+  public method: string;
 
   constructor(private req: http.IncomingMessage, private url: URL) {
     this.headers = req.headers;
+    this.method = (req.method ?? "GET").toUpperCase();
+  }
+
+  /** Request path without query string, e.g. `/api/users/1`. */
+  get path(): string {
+    return this.url.pathname;
   }
 
   async json() {

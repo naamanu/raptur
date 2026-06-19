@@ -3,11 +3,14 @@ import { URL } from 'node:url';
 
 import { RapturRequest } from "./request"
 import { RapturResponse } from "./response"
-import { HttpMethod, Route, RouteHandler } from "./types";
+import { compose } from "./compose";
+import { errorBoundary } from "./middleware/error-boundary";
+import { HttpMethod, Middleware, Route } from "./types";
 
 
 export class Raptur {
   private routes: Route[] = [];
+  private globalMiddleware: Middleware[] = [];
   private server: http.Server;
 
   constructor(private port: number = 3000) {
@@ -16,7 +19,7 @@ export class Raptur {
          __    _                   
         / _)  / \\        /\\  /\\    
        /(_)(  \\_/       /  \\/  \\   
-      (____)\  _    ___/   /\\   \\  
+      (____)\\  _    ___/   /\\   \\
            U  (_)  (___/   \\/   /  
                _    _  \\_      /   
               (____(__  \\_____/    
@@ -24,29 +27,32 @@ export class Raptur {
     🦖 Raptur Router initialized`);
   }
 
-  get(path: string, handler: RouteHandler): Raptur {
-    this.addRoute('GET', path, handler);
+  /** Register global middleware run before every matched route, in order. */
+  use(...middleware: Middleware[]): this {
+    this.globalMiddleware.push(...middleware);
     return this;
   }
 
-  post(path: string, handler: RouteHandler): Raptur {
-    this.addRoute('POST', path, handler);
-    return this;
+  get(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('GET', path, middleware);
   }
 
-  put(path: string, handler: RouteHandler): Raptur {
-    this.addRoute('PUT', path, handler);
-    return this;
+  post(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('POST', path, middleware);
   }
 
-  delete(path: string, handler: RouteHandler): Raptur {
-    this.addRoute('DELETE', path, handler);
-    return this;
+  put(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('PUT', path, middleware);
   }
 
-  private addRoute(method: HttpMethod, path: string, handler: RouteHandler): void {
-    this.routes.push({ method, path, handler });
+  delete(path: string, ...middleware: Middleware[]): this {
+    return this.addRoute('DELETE', path, middleware);
+  }
+
+  private addRoute(method: HttpMethod, path: string, middleware: Middleware[]): this {
+    this.routes.push({ method, path, handler: compose(...middleware) });
     console.log(`🦕 Route registered: ${method} ${path}`);
+    return this;
   }
 
   private extractParams(routePath: string, requestPath: string): Record<string, string> | null {
@@ -77,26 +83,33 @@ export class Raptur {
 
     const req = new RapturRequest(nodeReq, url);
     const res = new RapturResponse(nodeRes);
+    req.query = Object.fromEntries(url.searchParams);
 
-    for (const route of this.routes) {
-      if (route.method === method) {
-        const params = this.extractParams(route.path, url.pathname);
-        if (params) {
-          req.params = params;
-          req.query = Object.fromEntries(url.searchParams);
-          try {
-            await route.handler(req, res);
-            return;
-          } catch (error) {
-            console.error('🚨 Route handler error:', error);
-            res.status(500).json({ error: 'Internal Server Error' });
-            return;
-          }
-        }
-      }
+    const match = this.match(method, url.pathname);
+    if (match) {
+      req.params = match.params;
     }
 
-    res.status(404).json({ error: 'Not Found' });
+    // Terminal step: the matched route's pipeline, or a 404 if nothing matched.
+    const terminal: Middleware = match
+      ? match.route.handler
+      : (_req, _res) => { _res.status(404).json({ error: 'Not Found' }); };
+
+    // A default error boundary always guards the whole pipeline so an
+    // uncaught throw becomes a 500 rather than a hung socket.
+    const pipeline = compose(errorBoundary(), ...this.globalMiddleware, terminal);
+    await pipeline(req, res, async () => {
+      if (!res.sent) res.status(404).json({ error: 'Not Found' });
+    });
+  }
+
+  private match(method: HttpMethod, pathname: string): { route: Route; params: Record<string, string> } | null {
+    for (const route of this.routes) {
+      if (route.method !== method) continue;
+      const params = this.extractParams(route.path, pathname);
+      if (params) return { route, params };
+    }
+    return null;
   }
 
   start(callback?: () => void): void {
@@ -104,5 +117,10 @@ export class Raptur {
       console.log(`🦖 Raptur is hunting on port ${this.port}`);
       callback?.();
     });
+  }
+
+  /** The underlying `http.Server`, e.g. to `.close()` it or read its address. */
+  get httpServer(): http.Server {
+    return this.server;
   }
 }
